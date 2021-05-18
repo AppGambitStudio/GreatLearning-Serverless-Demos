@@ -1,0 +1,4 @@
+{
+    "EVENTBUS_ARN": "arn:aws:events:us-east-1::event-source/aws.partner/mongodb.com/stitch.trigger/60a0c5f365229874d11ee5aa",
+    "EVENTBUS_SOURCE": "aws.partner/mongodb.com/stitch.trigger/60a0c5f365229874d11ee5aa"
+}

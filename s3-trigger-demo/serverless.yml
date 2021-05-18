@@ -1,0 +1,72 @@
+service: s3-trigger-demo
+
+frameworkVersion: '2'
+
+provider: # Basic configuration with IAM Role for Lambda
+  name: aws
+  runtime: nodejs12.x
+  stage: dev
+  lambdaHashingVersion: '20201221'
+  iam: # For Lambda to write to DynamoDB
+    role:
+      statements:
+        - Effect: "Allow"
+          Action:
+            - s3:GetObject
+          Resource:
+            Fn::GetAtt:
+              - FileBucket
+              - Arn
+
+        - Effect: "Allow"
+          Action:
+            - dynamodb:PutItem
+          Resource:
+            Fn::GetAtt:
+              - FilesTable
+              - Arn
+
+  environment: # For Lambda to get the DynamoDB table
+    TABLE_NAME: ${self:service}-${self:provider.stage}-${self:custom.table-name}  
+    
+custom: # Sevice parameters  
+  bucket-name: ${file(./${provider:stage, 'dev'}.config.json):BUCKET_NAME} # S3 Bucket Name
+  table-name: ${file(./${opt:stage, 'dev'}.config.json):TABLE_NAME} # DynamoDB Table Name
+
+package: # Remove files that are not needed in Lambda package
+  individually: true
+  excludeDevDependencies: false
+  exclude:
+    - .gitignore
+    - '*.md'
+    - node_modules/**
+    - assets/**
+
+functions: # Lambda functions
+  process-file:
+    handler: functions/process-file.handler
+    events:
+      - s3:
+          bucket: ${self:custom.bucket-name}-${provider:stage, 'dev'}
+          event: s3:ObjectCreated:*    
+          existing: true
+
+resources: # AWS Resources
+  Resources:
+
+    FileBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.bucket-name}-${provider:stage, 'dev'}
+    
+    FilesTable: # For saving the file path
+      Type: AWS::DynamoDB::Table      
+      Properties:
+        TableName: !Sub ${self:service}-${self:provider.stage}-${self:custom.table-name}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH

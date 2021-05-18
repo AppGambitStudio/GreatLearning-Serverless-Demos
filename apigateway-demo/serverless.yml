@@ -1,0 +1,65 @@
+service: apigateway-demo
+
+frameworkVersion: '2'
+
+provider: # Basic configuration with IAM Role for Lambda
+  name: aws
+  runtime: nodejs12.x
+  stage: dev
+  lambdaHashingVersion: '20201221'
+  iam: # For Lambda to write to DynamoDB
+    role:
+      statements:
+        - Effect: "Allow"
+          Action:
+            - dynamodb:PutItem
+          Resource:
+            Fn::GetAtt:
+              - DataTable
+              - Arn        
+  
+  environment: # For Lambda to get the DynamoDB table
+    TABLE_NAME: ${self:service}-${self:provider.stage}-${self:custom.table-name}    
+
+custom: # Sevice parameters  
+  table-name: ${file(./${opt:stage, 'dev'}.config.json):TABLE_NAME} # DynamoDB Table Name
+
+package: # Remove files that are not needed in Lambda package
+  individually: true
+  excludeDevDependencies: false
+  exclude:
+    - .gitignore
+    - '*.md'
+    - node_modules/**
+    - assets/**
+
+functions: # Lambda functions
+  sync-requests:
+    handler: functions/sync-requests.handler
+    events:
+      - http:
+          path: sync-requests
+          method: POST
+  
+  async-requests:
+    handler: functions/async-requests.handler
+    events:
+      - http:
+          path: async-requests
+          method: POST
+          async: true
+
+resources: # AWS Resources
+  Resources:
+
+    DataTable: # For saving the request data
+      Type: AWS::DynamoDB::Table      
+      Properties:
+        TableName: !Sub ${self:service}-${self:provider.stage}-${self:custom.table-name}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH

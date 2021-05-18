@@ -1,0 +1,34 @@
+service: eventbridge-demo
+
+frameworkVersion: '2'
+
+provider: # Basic configuration with IAM Role for Lambda
+  name: aws
+  runtime: nodejs12.x
+  stage: dev
+  lambdaHashingVersion: '20201221'
+  eventBridge:
+    useCloudFormation: true      
+
+custom: # Sevice parameters        
+  eventbus-arn: ${file(./${opt:stage, 'dev'}.config.json):EVENTBUS_ARN} # EventBridge Bus ARN
+  eventbus-source: ${file(./${opt:stage, 'dev'}.config.json):EVENTBUS_SOURCE} # EventBridge Bus Source
+
+package: # Remove files that are not needed in Lambda package
+  individually: true
+  excludeDevDependencies: false
+  exclude:
+    - .gitignore
+    - '*.md'
+    - node_modules/**
+    - assets/**
+
+functions: # Lambda functions
+  process-data:
+    handler: functions/process-messages.handler
+    events:
+      - eventBridge:
+          eventBus: ${self:custom.eventbus-arn}
+          pattern:
+            source:
+              - ${self:custom.eventbus-source}
